@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.Title}} - Claude Code Session</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #f7f7f8;
+        --sidebar-bg: #1a1a2e;
+        --sidebar-text: #e0e0e0;
+        --sidebar-accent: #7c5cbf;
+        --user-bubble: #e8e0f3;
+        --user-text: #1a1a2e;
+        --assistant-bubble: #ffffff;
+        --assistant-text: #1e1e2e;
+        --avatar-user: #8b7355;
+        --avatar-assistant: #6c5ce7;
+        --tool-bg: #f0edf5;
+        --tool-text: #7c6da3;
+        --border: #e5e5ea;
+        --timestamp-color: #9e9ea7;
+        --code-bg: #282c34;
+        --code-text: #abb2bf;
+        --header-bg: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #2d2b55 50%,
+          #3b2e6e 100%
+        );
+        --table-header: #f0edf5;
+        --table-border: #ddd;
+        --link-color: #6c5ce7;
+      }
+
+      html {
+        height: 100%;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: #333;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .header {
+        background: var(--header-bg);
+        color: white;
+        padding: 32px 40px;
+        position: relative;
+        overflow: hidden;
+      }
+      .header::after {
+        content: "";
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(
+          circle,
+          rgba(108, 92, 231, 0.15) 0%,
+          transparent 70%
+        );
+        border-radius: 50%;
+      }
+      .header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        margin-bottom: 6px;
+      }
+      .header .subtitle {
+        font-size: 15px;
+        opacity: 0.7;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+      }
+      .header .session-meta {
+        margin-top: 12px;
+        font-size: 13px;
+        opacity: 0.5;
+      }
+
+      .layout {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .sidebar {
+        width: 260px;
+        background: var(--sidebar-bg);
+        color: var(--sidebar-text);
+        padding: 28px 20px;
+        flex-shrink: 0;
+      }
+      .sidebar h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: var(--sidebar-accent);
+        margin-bottom: 16px;
+        font-weight: 600;
+      }
+      .sidebar .info-block {
+        margin-bottom: 24px;
+      }
+      .sidebar .info-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #8888a0;
+        margin-bottom: 4px;
+      }
+      .sidebar .info-value {
+        font-size: 14px;
+        color: #d0d0e0;
+        line-height: 1.5;
+      }
+      .sidebar .stat {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 13px;
+      }
+      .sidebar .stat-label {
+        color: #8888a0;
+      }
+      .sidebar .stat-value {
+        color: #d0d0e0;
+        font-weight: 500;
+      }
+
+      .chat-area {
+        flex: 1;
+        padding: 32px 40px 60px;
+        max-width: 900px;
+        overflow-y: auto;
+      }
+
+      .message-row {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        gap: 12px;
+      }
+      .user-row {
+        justify-content: flex-end;
+      }
+      .assistant-row {
+        justify-content: flex-start;
+      }
+
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 700;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .user-avatar {
+        background: var(--avatar-user);
+        color: white;
+      }
+      .assistant-avatar {
+        background: var(--avatar-assistant);
+        color: white;
+      }
+
+      .message-content {
+        max-width: 680px;
+        min-width: 60px;
+      }
+      .bubble {
+        padding: 14px 18px;
+        border-radius: 16px;
+        line-height: 1.6;
+        font-size: 14.5px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+      .user-bubble {
+        background: var(--user-bubble);
+        color: var(--user-text);
+        border-bottom-right-radius: 4px;
+      }
+      .assistant-bubble {
+        background: var(--assistant-bubble);
+        color: var(--assistant-text);
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .timestamp {
+        display: block;
+        font-size: 11px;
+        color: var(--timestamp-color);
+        margin-top: 4px;
+        padding: 0 4px;
+      }
+      .user-row .timestamp {
+        text-align: right;
+      }
+
+      .tool-indicator {
+        display: flex;
+        justify-content: center;
+        margin: 8px 0;
+      }
+      .tool-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--tool-bg);
+        color: var(--tool-text);
+        font-size: 12px;
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-weight: 500;
+        letter-spacing: 0.2px;
+      }
+      .tool-pill::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        background: var(--tool-text);
+        border-radius: 50%;
+        opacity: 0.5;
+      }
+
+      .msg-image {
+        margin-top: 8px;
+      }
+      .msg-image img {
+        max-width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+      }
+      .msg-text {
+        white-space: pre-wrap;
+      }
+
+      .rendered h1,
+      .rendered h2,
+      .rendered h3,
+      .rendered h4 {
+        margin-top: 16px;
+        margin-bottom: 8px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+      .rendered h1 {
+        font-size: 20px;
+      }
+      .rendered h2 {
+        font-size: 17px;
+      }
+      .rendered h3 {
+        font-size: 15px;
+      }
+      .rendered h4 {
+        font-size: 14px;
+      }
+      .rendered p {
+        margin-bottom: 10px;
+        line-height: 1.65;
+      }
+      .rendered ul,
+      .rendered ol {
+        margin: 8px 0 12px 20px;
+      }
+      .rendered li {
+        margin-bottom: 4px;
+        line-height: 1.55;
+      }
+      .rendered code {
+        background: #f0edf5;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+        font-size: 13px;
+        color: #6c5ce7;
+      }
+      .rendered pre {
+        background: var(--code-bg);
+        color: var(--code-text);
+        padding: 16px;
+        border-radius: 10px;
+        overflow-x: auto;
+        margin: 12px 0;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .rendered pre code {
+        background: none;
+        color: inherit;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+      }
+      .rendered strong {
+        font-weight: 700;
+      }
+      .rendered em {
+        font-style: italic;
+      }
+      .rendered a {
+        color: var(--link-color);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(108, 92, 231, 0.3);
+      }
+      .rendered a:hover {
+        border-bottom-color: var(--link-color);
+      }
+      .rendered table {
+        border-collapse: collapse;
+        margin: 12px 0;
+        width: 100%;
+        font-size: 13px;
+      }
+      .rendered table th {
+        background: var(--table-header);
+        font-weight: 600;
+        text-align: left;
+        padding: 8px 12px;
+        border: 1px solid var(--table-border);
+      }
+      .rendered table td {
+        padding: 8px 12px;
+        border: 1px solid var(--table-border);
+        vertical-align: top;
+      }
+      .rendered table tr:nth-child(even) {
+        background: #fafafa;
+      }
+      .rendered hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 16px 0;
+      }
+      .rendered blockquote {
+        border-left: 3px solid var(--avatar-assistant);
+        margin: 12px 0;
+        padding: 8px 16px;
+        background: #f8f7fc;
+        border-radius: 0 8px 8px 0;
+        color: #555;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          flex-direction: column;
+        }
+        .sidebar {
+          width: 100%;
+          padding: 20px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        .sidebar .info-block {
+          margin-bottom: 0;
+        }
+        .chat-area {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>{{.Title}}</h1>
+      <div class="subtitle">Claude Code Session</div>
+      <div class="session-meta">{{.Project}} &middot; {{.DateRange}}</div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="info-block">
+          <h2>Session</h2>
+          <div class="info-label">Project</div>
+          <div class="info-value">{{.Project}}</div>
+        </div>
+        <div class="info-block">
+          <div class="info-label">Date</div>
+          <div class="info-value">{{.DateRange}}</div>
+        </div>
+        <div class="info-block">
+          <h2>Stats</h2>
+          <div class="stat">
+            <span class="stat-label">Model</span
+            ><span class="stat-value">{{.Model}}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Messages</span
+            ><span class="stat-value"
+              >{{.UserCount}} user / {{.AssistantCount}} assistant</span
+            >
+          </div>
+        </div>
+      </aside>
+
+      <main class="chat-area">
+        {{range .Messages}}{{if eq .Role "user"}}
+        <div class="message-row user-row">
+          <div class="message-content">
+            <div class="bubble user-bubble">
+              {{range .Texts}}
+              <div class="msg-text">{{safeHTML .}}</div>
+              {{end}}{{range .Images}}
+              <div class="msg-image">
+                <img
+                  src="data:{{.MediaType}};base64,{{.Data}}"
+                  alt="User shared image"
+                />
+              </div>
+              {{end}}
+            </div>
+            {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span
+            >{{end}}
+          </div>
+          <div class="avatar user-avatar">U</div>
+        </div>
+        {{else if eq .Role "assistant"}}
+        <div class="message-row assistant-row">
+          <div class="avatar assistant-avatar">C</div>
+          <div class="message-content">
+            <div class="bubble assistant-bubble">
+              {{range .Texts}}
+              <div class="msg-text markdown-content">{{safeHTML .}}</div>
+              {{end}}
+            </div>
+            {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span
+            >{{end}}
+          </div>
+        </div>
+        {{else if eq .Role "tool_group"}}{{if .ToolLabel}}
+        <div class="tool-indicator">
+          <span class="tool-pill">{{.ToolLabel}}</span>
+        </div>
+        {{end}}{{end}}{{end}}
+      </main>
+    </div>
+
+    <script>
+      function renderMarkdown(text) {
+        var textarea = document.createElement("textarea");
+        textarea.innerHTML = text;
+        var s = textarea.value;
+
+        s = s.replace(/```(\w*)?\n([\s\S]*?)```/g, function (m, lang, code) {
+          code = code
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          return (
+            '<pre><code class="language-' +
+            (lang || "") +
+            '">' +
+            code +
+            "</code></pre>"
+          );
+        });
+        s = s.replace(/`([^`]+)`/g, function (m, code) {
+          code = code
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          return "<code>" + code + "</code>";
+        });
+        s = s.replace(
+          /^(\|.+\|\n)(\|[\s-:|]+\|\n)((?:\|.+\|\n?)*)/gm,
+          function (m, hdr, sep, body) {
+            function pr(row) {
+              return row
+                .trim()
+                .replace(/^\|/, "")
+                .replace(/\|$/, "")
+                .split("|")
+                .map(function (c) {
+                  return c.trim();
+                });
+            }
+            var hs = pr(hdr),
+              rs = body
+                .trim()
+                .split("\n")
+                .filter(function (r) {
+                  return r.trim();
+                });
+            var h =
+              "<table><thead><tr>" +
+              hs
+                .map(function (c) {
+                  return "<th>" + c + "</th>";
+                })
+                .join("") +
+              "</tr></thead><tbody>";
+            rs.forEach(function (r) {
+              var cs = pr(r);
+              h +=
+                "<tr>" +
+                cs
+                  .map(function (c) {
+                    return "<td>" + c + "</td>";
+                  })
+                  .join("") +
+                "</tr>";
+            });
+            return h + "</tbody></table>";
+          },
+        );
+        s = s.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+        s = s.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+        s = s.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+        s = s.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+        s = s.replace(/^---+$/gm, "<hr>");
+        s = s.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+        s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
+        s = s.replace(
+          /\[([^\]]+)\]\(([^)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener">$1</a>',
+        );
+        s = s.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+        s = s.replace(/^[ \t]*[-*] (.+)$/gm, "<li>$1</li>");
+        s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>");
+        s = s.replace(/^[ \t]*\d+\. (.+)$/gm, "<oli>$1</oli>");
+        s = s.replace(/((?:<oli>.*<\/oli>\n?)+)/g, function (m) {
+          return (
+            "<ol>" +
+            m.replace(/<\/?oli>/g, function (t) {
+              return t.replace("oli", "li");
+            }) +
+            "</ol>"
+          );
+        });
+
+        var lines = s.split("\n"),
+          result = [],
+          inBlock = false;
+        for (var i = 0; i < lines.length; i++) {
+          var t = lines[i].trim();
+          if (
+            t.match(
+              /^<(h[1-6]|ul|ol|li|pre|table|thead|tbody|tr|th|td|blockquote|hr|div|p)/,
+            )
+          ) {
+            inBlock = true;
+            result.push(lines[i]);
+          } else if (t.match(/^<\/(ul|ol|pre|table|tbody|blockquote|div)>/)) {
+            result.push(lines[i]);
+            inBlock = false;
+          } else if (inBlock) {
+            result.push(lines[i]);
+          } else if (t === "") {
+            result.push("");
+          } else {
+            result.push("<p>" + lines[i] + "</p>");
+          }
+        }
+        s = result.join("\n");
+        s = s.replace(/<p>\s*<\/p>/g, "");
+        return s;
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".markdown-content").forEach(function (el) {
+          el.innerHTML = renderMarkdown(el.textContent);
+          el.classList.add("rendered");
+          el.style.whiteSpace = "normal";
+        });
+      });
+    </script>
+  </body>
+</html>
