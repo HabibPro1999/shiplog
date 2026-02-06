@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{.Title}} - Claude Code Session</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       *,
       *::before,
@@ -14,84 +18,83 @@
       }
 
       :root {
-        --bg: #f7f7f8;
-        --sidebar-bg: #1a1a2e;
-        --sidebar-text: #e0e0e0;
-        --sidebar-accent: #7c5cbf;
-        --user-bubble: #e8e0f3;
-        --user-text: #1a1a2e;
-        --assistant-bubble: #ffffff;
-        --assistant-text: #1e1e2e;
-        --avatar-user: #8b7355;
-        --avatar-assistant: #6c5ce7;
-        --tool-bg: #f0edf5;
-        --tool-text: #7c6da3;
-        --border: #e5e5ea;
-        --timestamp-color: #9e9ea7;
-        --code-bg: #282c34;
-        --code-text: #abb2bf;
-        --header-bg: linear-gradient(
-          135deg,
-          #1a1a2e 0%,
-          #2d2b55 50%,
-          #3b2e6e 100%
-        );
-        --table-header: #f0edf5;
-        --table-border: #ddd;
-        --link-color: #6c5ce7;
+        --bg: #f8f5f0;
+        --sidebar-bg: #2c2a26;
+        --sidebar-text: #d4cfc7;
+        --sidebar-accent: #c4946c;
+        --sidebar-label: #8a847a;
+        --user-bg: #ede8e0;
+        --user-text: #3d3530;
+        --user-border: #c4946c;
+        --assistant-bg: #ffffff;
+        --assistant-text: #3d3530;
+        --assistant-border: #d4cfc7;
+        --accent: #b07d56;
+        --tool-bg: #ede8e0;
+        --tool-text: #9a8b78;
+        --border: #e2dbd2;
+        --timestamp-color: #b5ad9e;
+        --code-bg: #2a2622;
+        --code-text: #c8bfb4;
+        --code-border: #3d3835;
+        --inline-code-bg: #ede8e0;
+        --inline-code-color: #8b6544;
+        --table-header: #f0ebe3;
+        --table-border: #e2dbd2;
+        --link-color: #b07d56;
+        --blockquote-bg: #f5f0e8;
+        --blockquote-border: #b07d56;
+        --header-bg: #2c2a26;
       }
 
       html {
         height: 100%;
       }
+
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          "Helvetica Neue", Arial, sans-serif;
+        font-family: "DM Sans", sans-serif;
         background: var(--bg);
-        color: #333;
+        color: var(--user-text);
         min-height: 100%;
         display: flex;
         flex-direction: column;
       }
 
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 9999;
+      }
+
       .header {
         background: var(--header-bg);
-        color: white;
-        padding: 32px 40px;
-        position: relative;
-        overflow: hidden;
-      }
-      .header::after {
-        content: "";
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(
-          circle,
-          rgba(108, 92, 231, 0.15) 0%,
-          transparent 70%
-        );
-        border-radius: 50%;
+        color: #f0ebe3;
+        padding: 36px 40px 32px;
       }
       .header h1 {
-        font-size: 28px;
-        font-weight: 700;
+        font-family: "Instrument Serif", serif;
+        font-size: 32px;
+        font-weight: 400;
         letter-spacing: -0.5px;
         margin-bottom: 6px;
+        color: #f0ebe3;
       }
       .header .subtitle {
-        font-size: 15px;
-        opacity: 0.7;
+        font-family: "DM Sans", sans-serif;
+        font-size: 14px;
+        opacity: 0.5;
         font-weight: 400;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
       }
       .header .session-meta {
-        margin-top: 12px;
+        margin-top: 10px;
         font-size: 13px;
-        opacity: 0.5;
+        opacity: 0.35;
+        font-family: "DM Sans", sans-serif;
       }
 
       .layout {
@@ -104,170 +107,155 @@
         width: 260px;
         background: var(--sidebar-bg);
         color: var(--sidebar-text);
-        padding: 28px 20px;
+        padding: 32px 24px;
         flex-shrink: 0;
+        font-family: "DM Sans", sans-serif;
       }
       .sidebar h2 {
-        font-size: 13px;
-        text-transform: uppercase;
-        letter-spacing: 1.2px;
+        font-family: "Instrument Serif", serif;
+        font-style: italic;
+        font-size: 16px;
+        letter-spacing: 0;
+        text-transform: none;
         color: var(--sidebar-accent);
-        margin-bottom: 16px;
-        font-weight: 600;
+        margin-bottom: 14px;
+        font-weight: 400;
       }
       .sidebar .info-block {
-        margin-bottom: 24px;
+        margin-bottom: 28px;
       }
       .sidebar .info-label {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        color: #8888a0;
+        color: var(--sidebar-label);
         margin-bottom: 4px;
+        font-weight: 500;
       }
       .sidebar .info-value {
         font-size: 14px;
-        color: #d0d0e0;
+        color: var(--sidebar-text);
         line-height: 1.5;
+        word-break: break-all;
+        overflow-wrap: break-word;
       }
       .sidebar .stat {
         display: flex;
         justify-content: space-between;
-        padding: 6px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(212, 207, 199, 0.1);
         font-size: 13px;
       }
+      .sidebar .stat:last-child {
+        border-bottom: none;
+      }
       .sidebar .stat-label {
-        color: #8888a0;
+        color: var(--sidebar-label);
       }
       .sidebar .stat-value {
-        color: #d0d0e0;
+        color: var(--sidebar-text);
         font-weight: 500;
       }
 
       .chat-area {
         flex: 1;
-        padding: 32px 40px 60px;
-        max-width: 900px;
+        padding: 48px 56px 80px;
         overflow-y: auto;
       }
 
-      .message-row {
-        display: flex;
-        align-items: flex-start;
-        margin-bottom: 20px;
-        gap: 12px;
-      }
-      .user-row {
-        justify-content: flex-end;
-      }
-      .assistant-row {
-        justify-content: flex-start;
+      .message-block {
+        margin-bottom: 32px;
       }
 
-      .avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        font-weight: 700;
-        flex-shrink: 0;
-        margin-top: 2px;
+      .message-block.user-block {
+        padding-left: 20px;
+        border-left: 4px solid var(--user-border);
       }
-      .user-avatar {
-        background: var(--avatar-user);
-        color: white;
-      }
-      .assistant-avatar {
-        background: var(--avatar-assistant);
-        color: white;
+      .message-block.assistant-block {
+        padding-left: 20px;
+        border-left: 4px solid var(--assistant-border);
       }
 
-      .message-content {
-        max-width: 680px;
-        min-width: 60px;
+      .speaker-label {
+        display: block;
+        font-family: "DM Sans", sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
       }
-      .bubble {
-        padding: 14px 18px;
-        border-radius: 16px;
-        line-height: 1.6;
-        font-size: 14.5px;
+      .user-block .speaker-label {
+        color: var(--user-border);
+      }
+      .assistant-block .speaker-label {
+        color: var(--timestamp-color);
+      }
+
+      .message-body {
+        line-height: 1.65;
+        font-size: 15px;
         word-wrap: break-word;
         overflow-wrap: break-word;
       }
-      .user-bubble {
-        background: var(--user-bubble);
+      .user-block .message-body {
         color: var(--user-text);
-        border-bottom-right-radius: 4px;
       }
-      .assistant-bubble {
-        background: var(--assistant-bubble);
+      .assistant-block .message-body {
         color: var(--assistant-text);
-        border-bottom-left-radius: 4px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
       }
 
       .timestamp {
         display: block;
         font-size: 11px;
         color: var(--timestamp-color);
-        margin-top: 4px;
-        padding: 0 4px;
-      }
-      .user-row .timestamp {
-        text-align: right;
+        margin-top: 8px;
       }
 
-      .tool-indicator {
+      .tool-divider {
         display: flex;
-        justify-content: center;
-        margin: 8px 0;
-      }
-      .tool-pill {
-        display: inline-flex;
         align-items: center;
-        gap: 6px;
-        background: var(--tool-bg);
-        color: var(--tool-text);
-        font-size: 12px;
-        padding: 4px 14px;
-        border-radius: 20px;
-        font-weight: 500;
-        letter-spacing: 0.2px;
+        margin: 24px 0;
+        gap: 16px;
       }
-      .tool-pill::before {
+      .tool-divider::before,
+      .tool-divider::after {
         content: "";
-        display: inline-block;
-        width: 6px;
-        height: 6px;
-        background: var(--tool-text);
-        border-radius: 50%;
-        opacity: 0.5;
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      .tool-divider-label {
+        font-family: "DM Sans", sans-serif;
+        font-size: 12px;
+        color: var(--tool-text);
+        white-space: nowrap;
+        letter-spacing: 0.2px;
       }
 
       .msg-image {
-        margin-top: 8px;
+        margin-top: 10px;
       }
       .msg-image img {
         max-width: 100%;
-        border-radius: 10px;
+        border-radius: 8px;
         border: 1px solid var(--border);
+        box-shadow: 0 2px 8px rgba(60, 50, 40, 0.08);
       }
       .msg-text {
         white-space: pre-wrap;
       }
 
+      /* Rendered markdown styles */
       .rendered h1,
       .rendered h2,
       .rendered h3,
       .rendered h4 {
-        margin-top: 16px;
+        margin-top: 18px;
         margin-bottom: 8px;
-        font-weight: 700;
+        font-weight: 600;
         line-height: 1.3;
+        color: var(--user-text);
       }
       .rendered h1 {
         font-size: 20px;
@@ -283,7 +271,7 @@
       }
       .rendered p {
         margin-bottom: 10px;
-        line-height: 1.65;
+        line-height: 1.7;
       }
       .rendered ul,
       .rendered ol {
@@ -291,25 +279,26 @@
       }
       .rendered li {
         margin-bottom: 4px;
-        line-height: 1.55;
+        line-height: 1.6;
       }
       .rendered code {
-        background: #f0edf5;
+        background: var(--inline-code-bg);
         padding: 2px 6px;
         border-radius: 4px;
-        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+        font-family: "JetBrains Mono", monospace;
         font-size: 13px;
-        color: #6c5ce7;
+        color: var(--inline-code-color);
       }
       .rendered pre {
         background: var(--code-bg);
         color: var(--code-text);
-        padding: 16px;
-        border-radius: 10px;
+        padding: 18px;
+        border-radius: 6px;
+        border: 1px solid var(--code-border);
         overflow-x: auto;
-        margin: 12px 0;
+        margin: 14px 0;
         font-size: 13px;
-        line-height: 1.5;
+        line-height: 1.55;
       }
       .rendered pre code {
         background: none;
@@ -317,6 +306,7 @@
         padding: 0;
         border-radius: 0;
         font-size: inherit;
+        font-family: "JetBrains Mono", monospace;
       }
       .rendered strong {
         font-weight: 700;
@@ -327,14 +317,14 @@
       .rendered a {
         color: var(--link-color);
         text-decoration: none;
-        border-bottom: 1px solid rgba(108, 92, 231, 0.3);
+        border-bottom: 1px solid rgba(176, 125, 86, 0.3);
       }
       .rendered a:hover {
         border-bottom-color: var(--link-color);
       }
       .rendered table {
         border-collapse: collapse;
-        margin: 12px 0;
+        margin: 14px 0;
         width: 100%;
         font-size: 13px;
       }
@@ -351,20 +341,20 @@
         vertical-align: top;
       }
       .rendered table tr:nth-child(even) {
-        background: #fafafa;
+        background: #f8f4ed;
       }
       .rendered hr {
         border: none;
         border-top: 1px solid var(--border);
-        margin: 16px 0;
+        margin: 18px 0;
       }
       .rendered blockquote {
-        border-left: 3px solid var(--avatar-assistant);
+        border-left: 3px solid var(--blockquote-border);
         margin: 12px 0;
-        padding: 8px 16px;
-        background: #f8f7fc;
-        border-radius: 0 8px 8px 0;
-        color: #555;
+        padding: 10px 18px;
+        background: var(--blockquote-bg);
+        border-radius: 0 6px 6px 0;
+        color: #5a4f44;
       }
 
       @media (max-width: 900px) {
@@ -373,7 +363,7 @@
         }
         .sidebar {
           width: 100%;
-          padding: 20px;
+          padding: 20px 24px;
           display: flex;
           flex-wrap: wrap;
           gap: 16px;
@@ -382,7 +372,7 @@
           margin-bottom: 0;
         }
         .chat-area {
-          padding: 20px;
+          padding: 28px 20px 60px;
         }
       }
     </style>
@@ -422,41 +412,35 @@
 
       <main class="chat-area">
         {{range .Messages}}{{if eq .Role "user"}}
-        <div class="message-row user-row">
-          <div class="message-content">
-            <div class="bubble user-bubble">
-              {{range .Texts}}
-              <div class="msg-text">{{safeHTML .}}</div>
-              {{end}}{{range .Images}}
-              <div class="msg-image">
-                <img
-                  src="data:{{.MediaType}};base64,{{.Data}}"
-                  alt="User shared image"
-                />
-              </div>
-              {{end}}
+        <div class="message-block user-block">
+          <span class="speaker-label">You</span>
+          <div class="message-body">
+            {{range .Texts}}
+            <div class="msg-text">{{safeHTML .}}</div>
+            {{end}}{{range .Images}}
+            <div class="msg-image">
+              <img
+                src="data:{{.MediaType}};base64,{{.Data}}"
+                alt="User shared image"
+              />
             </div>
-            {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span
-            >{{end}}
+            {{end}}
           </div>
-          <div class="avatar user-avatar">U</div>
+          {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span>{{end}}
         </div>
         {{else if eq .Role "assistant"}}
-        <div class="message-row assistant-row">
-          <div class="avatar assistant-avatar">C</div>
-          <div class="message-content">
-            <div class="bubble assistant-bubble">
-              {{range .Texts}}
-              <div class="msg-text markdown-content">{{safeHTML .}}</div>
-              {{end}}
-            </div>
-            {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span
-            >{{end}}
+        <div class="message-block assistant-block">
+          <span class="speaker-label">Claude</span>
+          <div class="message-body">
+            {{range .Texts}}
+            <div class="msg-text markdown-content">{{safeHTML .}}</div>
+            {{end}}
           </div>
+          {{if .Timestamp}}<span class="timestamp">{{.Timestamp}}</span>{{end}}
         </div>
         {{else if eq .Role "tool_group"}}{{if .ToolLabel}}
-        <div class="tool-indicator">
-          <span class="tool-pill">{{.ToolLabel}}</span>
+        <div class="tool-divider">
+          <span class="tool-divider-label">&mdash; {{.ToolLabel}} &mdash;</span>
         </div>
         {{end}}{{end}}{{end}}
       </main>
