@@ -15,23 +15,20 @@ builds:
       - arm64
 
 archives:
-  - format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
+  - formats:
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
-brews:
+homebrew_casks:
   - repository:
       owner: HabibPro1999
       name: homebrew-tap
       token: "{{ .Env.GITHUB_TOKEN }}"
     name: shiplog
+    binaries:
+      - shiplog
     homepage: "https://github.com/HabibPro1999/shiplog"
     description: "Export Claude Code sessions to beautiful, shareable HTML chat logs"
-    license: "MIT"
-    install: |
-      bin.install "shiplog"
 
 changelog:
   sort: asc
