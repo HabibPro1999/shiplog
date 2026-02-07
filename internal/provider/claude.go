@@ -136,7 +136,8 @@ func pathToProjectDir(path string) string {
 	return s
 }
 
-// scanSessionFile reads a .jsonl file looking for custom-title and first timestamp.
+// scanSessionFile reads a .jsonl file looking for custom-title, first timestamp,
+// and (as a fallback title) the first human message text.
 func scanSessionFile(path string) (title, firstTS string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -146,6 +147,8 @@ func scanSessionFile(path string) (title, firstTS string) {
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
+	var firstUserText string
 
 	for scanner.Scan() {
 		var obj map[string]any
@@ -169,15 +172,64 @@ func scanSessionFile(path string) (title, firstTS string) {
 			}
 		}
 
+		// Capture first human message text as fallback title.
+		if firstUserText == "" {
+			if t, ok := obj["type"].(string); ok && (t == "human" || t == "user") {
+				firstUserText = extractFirstUserText(obj)
+			}
+		}
+
 		if title != "" && firstTS != "" {
 			break
 		}
 	}
 
 	if title == "" {
-		title = "(untitled)"
+		if firstUserText != "" {
+			title = truncateTitle(firstUserText, 60)
+		} else {
+			title = "(untitled)"
+		}
 	}
 	return title, firstTS
+}
+
+// extractFirstUserText pulls the first text string from a human/user JSONL entry.
+func extractFirstUserText(obj map[string]any) string {
+	msg, ok := obj["message"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	switch c := msg["content"].(type) {
+	case string:
+		text := strings.TrimSpace(c)
+		if text != "" && !isSystemContent(text) {
+			return text
+		}
+	case []any:
+		for _, block := range c {
+			bm, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			if asString(bm["type"]) == "text" {
+				text := strings.TrimSpace(asString(bm["text"]))
+				if text != "" && !isSystemContent(text) {
+					return text
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// truncateTitle shortens s to maxLen characters, appending "..." if truncated.
+func truncateTitle(s string, maxLen int) string {
+	s = strings.Join(strings.Fields(s), " ") // collapse whitespace
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // extractUserMessage extracts text and images from a user entry.
