@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{.Title}} - Claude Code Session</title>
+    <title>{{.Title}} - {{.Tool}} Session</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
@@ -380,7 +380,7 @@
   <body>
     <div class="header">
       <h1>{{.Title}}</h1>
-      <div class="subtitle">Claude Code Session</div>
+      <div class="subtitle">{{.Tool}} Session</div>
       <div class="session-meta">{{.Project}} &middot; {{.DateRange}}</div>
     </div>
 
@@ -430,7 +430,7 @@
         </div>
         {{else if eq .Role "assistant"}}
         <div class="message-block assistant-block">
-          <span class="speaker-label">Claude</span>
+          <span class="speaker-label">Assistant</span>
           <div class="message-body">
             {{range .Texts}}
             <div class="msg-text markdown-content">{{safeHTML .}}</div>
