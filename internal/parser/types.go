@@ -21,4 +21,5 @@ type SessionMeta struct {
 	Title     string
 	DateRange string
 	Model     string
+	Tool      string // human-readable tool name
 }
