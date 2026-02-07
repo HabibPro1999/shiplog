@@ -48,9 +48,9 @@ func (c *Codex) Discover(home string, projectFilter string) ([]session.SessionIn
 			timestamp = info.ModTime().UTC().Format("2006-01-02T15:04:05Z")
 		}
 
-		// Project filtering: compare cwd against projectFilter
-		if projectFilter != "" && cwd != "" {
-			if !strings.HasPrefix(cwd, projectFilter) && !strings.HasPrefix(projectFilter, cwd) {
+		// Project filtering: cwd must be exactly projectFilter or a subdirectory of it
+		if projectFilter != "" {
+			if cwd == "" || (cwd != projectFilter && !strings.HasPrefix(cwd, projectFilter+string(filepath.Separator))) {
 				return nil
 			}
 		}
@@ -60,6 +60,9 @@ func (c *Codex) Discover(home string, projectFilter string) ([]session.SessionIn
 			project = "(unknown)"
 		}
 
+		if title == "" {
+			title = fallbackCodexTitle(path)
+		}
 		if title == "" {
 			title = "(untitled)"
 		}
@@ -255,6 +258,44 @@ func scanCodexSessionFile(path string) (cwd, title, timestamp string) {
 	}
 
 	return "", "", ""
+}
+
+// fallbackCodexTitle scans a Codex JSONL file for the first user message text.
+func fallbackCodexTitle(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		var entry map[string]any
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		if asString(entry["type"]) != "event_msg" {
+			continue
+		}
+		payload, ok := entry["payload"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if asString(payload["type"]) != "user_message" {
+			continue
+		}
+		text := asString(payload["text"])
+		if text == "" {
+			text = asString(payload["content"])
+		}
+		text = strings.TrimSpace(text)
+		if text != "" {
+			return truncateTitle(text, 60)
+		}
+	}
+	return ""
 }
 
 // getContentArray extracts the content array from a Codex response_item entry.

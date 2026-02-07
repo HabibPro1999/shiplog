@@ -98,9 +98,9 @@ func (o *OpenCode) Discover(home string, projectFilter string) ([]session.Sessio
 			projID := pe.Name()
 			projectPath := projectPaths[projID]
 
-			// Apply project filter
-			if projectFilter != "" && projectPath != "" {
-				if !strings.HasPrefix(projectPath, projectFilter) && !strings.HasPrefix(projectFilter, projectPath) {
+			// Apply project filter: skip sessions with unknown paths, require exact or subdirectory match
+			if projectFilter != "" {
+				if projectPath == "" || (projectPath != projectFilter && !strings.HasPrefix(projectPath, projectFilter+string(filepath.Separator))) {
 					continue
 				}
 			}
@@ -127,6 +127,9 @@ func (o *OpenCode) Discover(home string, projectFilter string) ([]session.Sessio
 				}
 
 				title := sess.Title
+				if title == "" {
+					title = fallbackOpenCodeTitle(storageDir, sess.ID)
+				}
 				if title == "" {
 					title = "(untitled)"
 				}
@@ -262,6 +265,62 @@ func (o *OpenCode) Parse(filePath string) ([]parser.Message, parser.SessionMeta,
 	}
 
 	return messages, meta, nil
+}
+
+// fallbackOpenCodeTitle reads the earliest user message for a session and returns
+// a truncated version of its text, for use when the session has no title.
+func fallbackOpenCodeTitle(storageDir string, sessionID string) string {
+	if strings.Contains(sessionID, "..") || strings.ContainsAny(sessionID, `/\`) {
+		return ""
+	}
+	messageDir := filepath.Join(storageDir, "message", sessionID)
+	msgFiles, _ := filepath.Glob(filepath.Join(messageDir, "*.json"))
+
+	// Find earliest user message by createdAt
+	var bestText string
+	var bestTime int64 = 1<<63 - 1
+
+	for _, mf := range msgFiles {
+		data, err := os.ReadFile(mf)
+		if err != nil {
+			continue
+		}
+		var m openCodeMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			continue
+		}
+		if m.Role != "user" || m.CreatedAt >= bestTime {
+			continue
+		}
+
+		// Read parts to get text
+		partDir := filepath.Join(storageDir, "part")
+		if strings.Contains(m.ID, "..") || strings.ContainsAny(m.ID, `/\`) {
+			continue
+		}
+		partFiles, _ := filepath.Glob(filepath.Join(partDir, m.ID, "*.json"))
+		for _, pf := range partFiles {
+			pdata, err := os.ReadFile(pf)
+			if err != nil {
+				continue
+			}
+			var part openCodePart
+			if err := json.Unmarshal(pdata, &part); err != nil {
+				continue
+			}
+			text := strings.TrimSpace(part.Text)
+			if part.Type == "text" && text != "" {
+				bestText = text
+				bestTime = m.CreatedAt
+				break
+			}
+		}
+	}
+
+	if bestText != "" {
+		return truncateTitle(bestText, 60)
+	}
+	return ""
 }
 
 // formatUnixTimestamp converts a unix timestamp (millis or seconds) to ISO 8601.
