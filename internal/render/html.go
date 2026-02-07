@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HabibPro1999/shiplog/internal/parser"
+	"github.com/HabibPro1999/shiplog/internal/provider"
 )
 
 //go:embed template/chat.html
@@ -30,6 +31,7 @@ type TemplateData struct {
 	Project        string
 	DateRange      string
 	Model          string
+	Tool           string
 	UserCount      int
 	AssistantCount int
 	Messages       []TemplateMessage
@@ -70,7 +72,7 @@ func Generate(messages []parser.Message, meta parser.SessionMeta, project string
 			}
 		case "tool_group":
 			if len(msg.ToolNames) == 1 {
-				tm.ToolLabel = parser.ToolDisplayName(msg.ToolNames[0])
+				tm.ToolLabel = provider.ToolDisplayName(msg.ToolNames[0])
 			} else if len(msg.ToolNames) > 1 {
 				tm.ToolLabel = fmt.Sprintf("%d tool actions performed", len(msg.ToolNames))
 			}
@@ -79,11 +81,17 @@ func Generate(messages []parser.Message, meta parser.SessionMeta, project string
 		tmplMessages = append(tmplMessages, tm)
 	}
 
+	toolName := meta.Tool
+	if toolName == "" {
+		toolName = "Claude Code"
+	}
+
 	data := TemplateData{
 		Title:          meta.Title,
 		Project:        project,
 		DateRange:      meta.DateRange,
 		Model:          meta.Model,
+		Tool:           toolName,
 		UserCount:      userCount,
 		AssistantCount: assistantCount,
 		Messages:       tmplMessages,

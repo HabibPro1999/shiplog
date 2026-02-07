@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/HabibPro1999/shiplog/internal/parser"
+	"github.com/HabibPro1999/shiplog/internal/provider"
 	"github.com/HabibPro1999/shiplog/internal/render"
 	"github.com/HabibPro1999/shiplog/internal/session"
+	"github.com/HabibPro1999/shiplog/internal/tui"
 	pflag "github.com/spf13/pflag"
 )
 
@@ -25,6 +25,8 @@ func main() {
 		sessionID string
 		list      bool
 		showVer   bool
+		toolFlag  string
+		recent    int
 	)
 
 	pflag.BoolVarP(&showAll, "all", "a", false, "Show all sessions (ignore project context)")
@@ -32,6 +34,8 @@ func main() {
 	pflag.StringVar(&sessionID, "session-id", "", "Export by session UUID")
 	pflag.BoolVarP(&list, "list", "l", false, "List sessions")
 	pflag.BoolVarP(&showVer, "version", "v", false, "Show version")
+	pflag.StringVar(&toolFlag, "tool", "", "Filter by tool (claude, codex, aider, opencode, amazonq)")
+	pflag.IntVar(&recent, "recent", 0, "Show only sessions from the last N days")
 	pflag.Parse()
 
 	if showVer {
@@ -41,44 +45,72 @@ func main() {
 
 	query := pflag.Arg(0)
 
-	// Determine claude projects directory
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  Error: cannot determine home directory: %v\n", err)
 		os.Exit(1)
 	}
-	claudeDir := filepath.Join(home, ".claude", "projects")
 
-	// Determine project scope
-	var projectFilter []string
-	scopeLabel := "all projects"
-	if !showAll {
-		matchingDirs := session.ProjectDirsForCWD(claudeDir)
-		if len(matchingDirs) > 0 {
-			projectFilter = matchingDirs
-			cwd, _ := os.Getwd()
-			scopeLabel = cwd
+	// Parse tool filter
+	var toolFilter session.Tool
+	if toolFlag != "" {
+		toolFilter = session.ParseTool(toolFlag)
+		if toolFilter == "" {
+			fmt.Fprintf(os.Stderr, "  Unknown tool: %s\n", toolFlag)
+			fmt.Fprintf(os.Stderr, "  Available: claude, codex, aider, opencode, amazonq\n")
+			os.Exit(1)
 		}
 	}
 
-	fmt.Printf("  Scanning sessions (%s)...\n", scopeLabel)
-	sessions, err := session.FindSessions(claudeDir, projectFilter)
+	// Build provider list as ProviderDiscoverer interface
+	allProviders := provider.All()
+	providers := make([]session.ProviderDiscoverer, len(allProviders))
+	for i, p := range allProviders {
+		providers[i] = p
+	}
+
+	// Determine project scope
+	projectFilter := ""
+	if !showAll {
+		cwd, err := os.Getwd()
+		if err == nil {
+			projectFilter = cwd
+		}
+	}
+
+	sessions, err := session.FindAllSessions(home, projectFilter, toolFilter, recent, providers)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  Error scanning sessions: %v\n", err)
 		os.Exit(1)
 	}
 
-	// List mode: -l flag, or no query and no session-id
-	if list || (query == "" && sessionID == "") {
-		if len(sessions) == 0 && projectFilter != nil {
-			fmt.Println("  No sessions found for this project. Use -a to show all.")
-		} else {
-			listSessions(sessions)
-		}
+	// No sessions: show help
+	if len(sessions) == 0 && query == "" && sessionID == "" {
+		tui.PrintNoSessionsHelp(projectFilter != "")
 		return
 	}
 
-	// Export mode
+	// Interactive/list mode: no query and no session-id
+	if query == "" && sessionID == "" {
+		if list || !isTerminal() {
+			tui.PrintSessionTable(sessions, showAll)
+			return
+		}
+		// Interactive picker
+		result, err := tui.RunPicker(sessions, showAll)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+			os.Exit(1)
+		}
+		if result.Quit || result.Selected == nil {
+			return
+		}
+		match := result.Selected
+		exportSession(match, output)
+		return
+	}
+
+	// Export mode: query or session-id given
 	q := sessionID
 	if q == "" {
 		q = query
@@ -87,9 +119,9 @@ func main() {
 	match, ambiguous := session.FindByQuery(sessions, q)
 
 	// If scoped search fails, retry with all projects
-	if match == nil && len(ambiguous) == 0 && projectFilter != nil {
+	if match == nil && len(ambiguous) == 0 && projectFilter != "" {
 		fmt.Println("  Not found in current project, searching all...")
-		sessions, err = session.FindSessions(claudeDir, nil)
+		sessions, err = session.FindAllSessions(home, "", toolFilter, recent, providers)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  Error scanning sessions: %v\n", err)
 			os.Exit(1)
@@ -101,7 +133,7 @@ func main() {
 		if len(ambiguous) > 0 {
 			fmt.Printf("  Multiple sessions match '%s':\n", q)
 			for _, m := range ambiguous {
-				fmt.Printf("    - %s (%s)\n", m.Title, m.Project)
+				fmt.Printf("    - %s (%s, %s)\n", m.Title, m.Project, m.Tool.Display())
 			}
 			fmt.Println("  Be more specific.")
 		} else {
@@ -110,18 +142,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("  Found: \"%s\" (%s)\n", match.Title, match.Project)
+	exportSession(match, output)
+}
+
+// exportSession parses and exports a session to HTML.
+func exportSession(match *session.SessionInfo, output string) {
+	fmt.Printf("  Found: \"%s\" (%s, %s)\n", match.Title, match.Project, match.Tool.Display())
 	fmt.Println("  Parsing transcript...")
 
-	entries, err := parser.ParseFile(match.FilePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "  Error parsing JSONL: %v\n", err)
+	p := provider.ForTool(match.Tool)
+	if p == nil {
+		fmt.Fprintf(os.Stderr, "  Error: no provider for tool %s\n", match.Tool)
 		os.Exit(1)
 	}
-	fmt.Printf("  %d entries\n", len(entries))
 
-	messages := parser.BuildMessages(entries)
-	meta := parser.ExtractMeta(entries)
+	messages, meta, err := p.Parse(match.FilePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "  Error parsing session: %v\n", err)
+		os.Exit(1)
+	}
 
 	userCount := 0
 	assistantCount := 0
@@ -142,11 +181,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Determine output path
 	outputPath := output
 	if outputPath == "" {
 		safeTitle := strings.ReplaceAll(match.Title, " ", "_")
 		safeTitle = strings.ReplaceAll(safeTitle, "/", "-")
+		safeTitle = filepath.Base(safeTitle)
 		outputPath = safeTitle + ".html"
 	}
 
@@ -160,47 +199,8 @@ func main() {
 	fmt.Println("  Done.")
 }
 
-// listSessions prints a formatted table of sessions.
-func listSessions(sessions []session.SessionInfo) {
-	// Sessions are already sorted by timestamp descending from FindSessions
-	fmt.Println()
-	fmt.Printf("  %-4s %-25s %-10s %-40s %s\n", "#", "Title", "ID", "Project", "Date")
-	fmt.Printf("  %s %s %s %s %s\n",
-		strings.Repeat("\u2500", 4),
-		strings.Repeat("\u2500", 25),
-		strings.Repeat("\u2500", 10),
-		strings.Repeat("\u2500", 40),
-		strings.Repeat("\u2500", 12),
-	)
-
-	for i, s := range sessions {
-		ts := ""
-		if s.Timestamp != "" {
-			cleaned := strings.Replace(s.Timestamp, "Z", "+00:00", 1)
-			t, err := time.Parse(time.RFC3339, cleaned)
-			if err != nil {
-				t, err = time.Parse(time.RFC3339Nano, cleaned)
-			}
-			if err == nil {
-				ts = t.Format("Jan 02, 2006")
-			}
-		}
-		title := truncate(s.Title, 24)
-		shortID := s.SessionID
-		if len(shortID) > 8 {
-			shortID = shortID[:8]
-		}
-		proj := truncate(s.Project, 39)
-		fmt.Printf("  %-4d %-25s %-10s %-40s %s\n", i+1, title, shortID, proj, ts)
-	}
-
-	fmt.Printf("\n  Total: %d sessions\n\n", len(sessions))
-}
-
-// truncate returns s truncated to maxLen characters.
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
+// isTerminal reports whether stdout is connected to a terminal.
+func isTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }

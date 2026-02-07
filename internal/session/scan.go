@@ -1,99 +1,53 @@
 package session
 
 import (
-	"bufio"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
-// PathToProjectDir converts a filesystem path to Claude's project dir name.
-// Claude replaces both / and _ with - in directory names.
-// e.g. /Users/mohamed/projects/value_slim_demo -> -Users-mohamed-projects-value-slim-demo
-func PathToProjectDir(path string) string {
-	s := strings.ReplaceAll(path, "/", "-")
-	s = strings.ReplaceAll(s, "_", "-")
-	return s
+// ProviderDiscoverer is the interface for session discovery.
+// This avoids a direct import of the provider package from session.
+type ProviderDiscoverer interface {
+	Name() Tool
+	Discover(home string, projectFilter string) ([]SessionInfo, error)
 }
 
-// ProjectDirsForCWD returns project dir names that match the current working directory.
-// Matches the CWD itself and any subdirectory projects.
-func ProjectDirsForCWD(claudeDir string) []string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
-	cwdEncoded := PathToProjectDir(cwd)
-
-	entries, err := os.ReadDir(claudeDir)
-	if err != nil {
-		return nil
-	}
-
-	var matches []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if name == cwdEncoded || strings.HasPrefix(name, cwdEncoded+"-") {
-			matches = append(matches, name)
-		}
-	}
-	return matches
-}
-
-// FindSessions scans project dirs and returns a list of SessionInfo.
-// If projectFilter is non-nil, only those dirs are scanned. Otherwise all dirs are scanned.
+// FindAllSessions queries all providers for sessions, applying optional filters.
+//   - home: user home directory
+//   - projectFilter: absolute path to scope to a specific project, or "" for all
+//   - toolFilter: tool name to restrict results, or "" for all tools
+//   - recentDays: if > 0, only return sessions from the last N days
+//   - providers: list of providers to query
+//
 // Results are sorted by timestamp descending (most recent first).
-func FindSessions(claudeDir string, projectFilter []string) ([]SessionInfo, error) {
-	var projDirs []string
-
-	if projectFilter != nil {
-		for _, d := range projectFilter {
-			full := filepath.Join(claudeDir, d)
-			if info, err := os.Stat(full); err == nil && info.IsDir() {
-				projDirs = append(projDirs, full)
-			}
-		}
-	} else {
-		entries, err := os.ReadDir(claudeDir)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range entries {
-			if e.IsDir() {
-				projDirs = append(projDirs, filepath.Join(claudeDir, e.Name()))
-			}
-		}
-	}
-
+func FindAllSessions(home, projectFilter string, toolFilter Tool, recentDays int, providers []ProviderDiscoverer) ([]SessionInfo, error) {
 	var sessions []SessionInfo
 
-	for _, projDir := range projDirs {
-		jsonlFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
+	for _, p := range providers {
+		if toolFilter != "" && p.Name() != toolFilter {
+			continue
+		}
+		found, err := p.Discover(home, projectFilter)
 		if err != nil {
 			continue
 		}
+		sessions = append(sessions, found...)
+	}
 
-		projName := filepath.Base(projDir)
-		// Convert project dir name back to readable path: replace - with /, strip leading /
-		readable := strings.TrimLeft(strings.ReplaceAll(projName, "-", "/"), "/")
-
-		for _, jf := range jsonlFiles {
-			title, firstTS := scanSessionFile(jf)
-
-			sessions = append(sessions, SessionInfo{
-				Title:      title,
-				SessionID:  strings.TrimSuffix(filepath.Base(jf), ".jsonl"),
-				Project:    readable,
-				ProjectDir: projName,
-				FilePath:   jf,
-				Timestamp:  firstTS,
-			})
+	// Apply recent days filter
+	if recentDays > 0 {
+		cutoff := time.Now().AddDate(0, 0, -recentDays).UTC().Format(time.RFC3339)
+		var filtered []SessionInfo
+		for _, s := range sessions {
+			if s.Timestamp >= cutoff {
+				filtered = append(filtered, s)
+			} else if s.Timestamp == "" {
+				// Keep sessions with no timestamp (can't filter them)
+				filtered = append(filtered, s)
+			}
 		}
+		sessions = filtered
 	}
 
 	// Sort by timestamp descending (most recent first)
@@ -104,47 +58,26 @@ func FindSessions(claudeDir string, projectFilter []string) ([]SessionInfo, erro
 	return sessions, nil
 }
 
-// scanSessionFile reads a .jsonl file line-by-line looking for custom-title and first timestamp.
-func scanSessionFile(path string) (title, firstTS string) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "(untitled)", ""
+// ParseTool converts a string tool flag value to a Tool constant.
+// Returns empty string if the input doesn't match any known tool.
+func ParseTool(s string) Tool {
+	normalized := Tool(strings.ToLower(strings.TrimSpace(s)))
+	switch normalized {
+	case ToolClaude, ToolCodex, ToolAider, ToolOpenCode, ToolAmazonQ:
+		return normalized
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	// Allow large lines (some JSONL entries can be big with base64 images)
-	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
-
-	for scanner.Scan() {
-		var obj map[string]any
-		if err := json.Unmarshal(scanner.Bytes(), &obj); err != nil {
-			continue
-		}
-
-		if t, ok := obj["type"].(string); ok && t == "custom-title" {
-			if ct, ok := obj["customTitle"].(string); ok {
-				title = ct
-			}
-		}
-
-		if firstTS == "" {
-			if ts, ok := obj["timestamp"].(string); ok && ts != "" {
-				firstTS = ts
-			} else if snap, ok := obj["snapshot"].(map[string]any); ok {
-				if ts, ok := snap["timestamp"].(string); ok && ts != "" {
-					firstTS = ts
-				}
-			}
-		}
-
-		if title != "" && firstTS != "" {
-			break
-		}
+	// Also try matching display names
+	switch strings.ToLower(s) {
+	case "claude code", "claude":
+		return ToolClaude
+	case "codex cli", "codex":
+		return ToolCodex
+	case "aider":
+		return ToolAider
+	case "opencode":
+		return ToolOpenCode
+	case "amazon q", "amazonq":
+		return ToolAmazonQ
 	}
-
-	if title == "" {
-		title = "(untitled)"
-	}
-	return title, firstTS
+	return ""
 }
