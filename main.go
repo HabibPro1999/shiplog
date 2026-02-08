@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/HabibPro1999/shiplog/internal/browser"
 	"github.com/HabibPro1999/shiplog/internal/provider"
 	"github.com/HabibPro1999/shiplog/internal/render"
 	"github.com/HabibPro1999/shiplog/internal/session"
@@ -196,6 +197,15 @@ func exportSession(match *session.SessionInfo, output string) {
 
 	sizeMB := float64(len(htmlBytes)) / (1024 * 1024)
 	fmt.Printf("  Written to: %s (%.1f MB)\n", outputPath, sizeMB)
+
+	absPath, err := filepath.Abs(outputPath)
+	if err != nil {
+		absPath = outputPath // fallback to original on error
+	}
+	if err := browser.Open(absPath); err != nil {
+		fmt.Fprintf(os.Stderr, "  Warning: could not open browser: %v\n", err)
+	}
+
 	fmt.Println("  Done.")
 }
 
